@@ -1,5 +1,6 @@
 import re
 import urllib2
+import os
 from bs4 import BeautifulSoup
 
 SITEURL = 'http://www.pro-football-reference.com'
@@ -11,11 +12,32 @@ def expandYear(year, workingDirectory):
 	year:	(int) year to scrape data from
 			if year not within records, throws a URLException'''
 
-	#verify url/year are fine
-	#make directory for year
+	#verify directory/year are fine
 	#for each week, make new directory, download games
 
-	pass
+	if not os.path.isdir(workingDirectory):	#check if working directory is valid
+		raise DirectoryError('no such directory as ' + workingDirectory)
+
+	if year < 1925 or year > 2016:	#check if year is valid
+		raise CriteriaError('year ' + year + ' not valid! Provide a year between 1925 and 2016.')
+
+	yearURL = SITEURL + '/years/' + str(year)	#read our year site, start parsing
+	yearChannel = urllib2.urlopen(yearURL)
+	yearHtml = yearChannel.read()
+	yearParser = BeautifulSoup(yearHtml, 'html.parser')
+	linkList = yearParser.find_all('a')	#make a list of all links
+	for link in linkList:
+		weekRegEx = re.compile('^/years/(\d){4}/week_((\d){1}|(\d){2})(\.htm)$')	#regex to match a link to a week's page
+		linkLoc = link.attrs['href']	#actual url from a given link
+		if weekRegEx.match(linkLoc):	#if url matches our pattern, it's a link to a week
+			weekNumber = linkLoc.split('/')[-1].split('.')[0]	#gets a string with the week in form 'week_xx'
+			print 'Downloading ' + weekNumber + '...'
+			weekDirectory = workingDirectory + weekNumber + '/'
+			if not os.path.isdir(weekDirectory):	#if no directory exists for the week, make new one
+				os.mkdir(weekDirectory)
+			weekURL = SITEURL + linkLoc
+			__downloadWeek(weekURL, weekDirectory)
+
 def __downloadWeek(baseURL, workingDirectory):
 	'''
 	Expands a given week games into its respective html files, then downloads them
@@ -28,7 +50,9 @@ def __downloadWeek(baseURL, workingDirectory):
 
 	Exceptions:	URLException if baseURL not a pro-football-reference.com weekly results site
 	'''
-	print baseURL
+	if not os.path.isdir(workingDirectory):	#Check if our working directory is valid
+		raise DirectoryError('no such directory as ' + workingDirectory)
+
 	urlPattern = re.compile('^(((http)|(https))://)?(www\.)?(pro-football-reference\.com/years/)(\d){4}(/week_)((\d){1}|(\d){2})(\.htm)$',
 							 re.I)	#regex for valid site
 	if urlPattern.match(baseURL) is None:	#No match, invalid URL!
@@ -46,7 +70,7 @@ def __downloadWeek(baseURL, workingDirectory):
 		if boxscoreRegEx.match(link.attrs['href']):	#link is a valid box score link
 			newURL = SITEURL + link.attrs['href']	#creates full new url
 			fileName = newURL.split('/')[-1]	#takes file name of html for what we want to save
-			fileLoc = workingDirectory + fileName
+			fileLoc = workingDirectory + fileName 	#local location to save file to
 			siteChannel = urllib2.urlopen(newURL)
 			html = siteChannel.read()
 			with open(fileLoc, 'w') as file:
@@ -55,5 +79,8 @@ def __downloadWeek(baseURL, workingDirectory):
 
 class URLError(Exception):
 	pass
-
-__downloadWeek('http://www.pro-football-reference.com/years/2016/week_1.htm', 'html/week_1/')
+class DirectoryError(Exception):
+	pass
+class CriteriaError(Exception):
+	pass
+expandYear(2016, 'html/2016/')
