@@ -26,17 +26,20 @@ def expandYear(year, workingDirectory):
 	yearHtml = yearChannel.read()
 	yearParser = BeautifulSoup(yearHtml, 'html.parser')
 	linkList = yearParser.find_all('a')	#make a list of all links
+	weeksVisited = {}
 	for link in linkList:
 		weekRegEx = re.compile('^/years/(\d){4}/week_((\d){1}|(\d){2})(\.htm)$')	#regex to match a link to a week's page
 		linkLoc = link.attrs['href']	#actual url from a given link
 		if weekRegEx.match(linkLoc):	#if url matches our pattern, it's a link to a week
-			weekNumber = linkLoc.split('/')[-1].split('.')[0]	#gets a string with the week in form 'week_xx'
-			print 'Downloading ' + weekNumber + '...'
-			weekDirectory = workingDirectory + weekNumber + '/'
-			if not os.path.isdir(weekDirectory):	#if no directory exists for the week, make new one
-				os.mkdir(weekDirectory)
 			weekURL = SITEURL + linkLoc
-			__downloadWeek(weekURL, weekDirectory)
+			if weekURL not in weeksVisited:
+				weekNumber = linkLoc.split('/')[-1].split('.')[0]	#gets a string with the week in form 'week_xx'
+				print 'Downloading ' + weekNumber + '...'
+				weekDirectory = workingDirectory + weekNumber + '/'
+				if not os.path.isdir(weekDirectory):	#if no directory exists for the week, make new one
+					os.mkdir(weekDirectory)
+				__downloadWeek(weekURL, weekDirectory)
+				weeksVisited[weekURL] = True
 
 def __downloadWeek(baseURL, workingDirectory):
 	'''
@@ -68,6 +71,9 @@ def __downloadWeek(baseURL, workingDirectory):
 	for link in linkList:
 		boxscoreRegEx = re.compile("^/boxscores/(\d){9}[a-zA-Z]{3}\.htm$")	#regex for box score links to download
 		if boxscoreRegEx.match(link.attrs['href']):	#link is a valid box score link
+			if link.contents[0] != 'Final':	#game is not finalized, don't download
+				print 'Skipping non-final game...'
+				continue
 			newURL = SITEURL + link.attrs['href']	#creates full new url
 			fileName = newURL.split('/')[-1]	#takes file name of html for what we want to save
 			fileLoc = workingDirectory + fileName 	#local location to save file to
